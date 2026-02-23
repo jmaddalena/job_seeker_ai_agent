@@ -1,0 +1,1 @@
+"""digest — email digest package."""
