@@ -31,7 +31,7 @@ I do not want to work in:
 - Advertising or marketing
 - Social media, e-commerce
 - Oil and gas
-- Defence or weapons manufacturing
+- Defense or weapons manufacturing
 """
 
 # Context used by the ethics / culture check agent.
