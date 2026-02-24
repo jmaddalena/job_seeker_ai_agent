@@ -52,3 +52,14 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")  # Load from .env for security
 EMAIL_FROM = os.getenv("SMTP_USER")  # Load from .env for security
 EMAIL_TO = os.getenv("SMTP_USER")  # Load from .env for security
 EMAIL_SUBJECT = "🤖 Daily Job Digest"
+
+# Validate required environment variables early so misconfiguration
+# fails fast with a clear error message instead of during email send.
+_REQUIRED_SMTP_ENV_VARS = ("SMTP_USER", "SMTP_PASSWORD")
+_missing_smtp_env_vars = [name for name in _REQUIRED_SMTP_ENV_VARS if not os.getenv(name)]
+if _missing_smtp_env_vars:
+    missing_list = ", ".join(_missing_smtp_env_vars)
+    raise RuntimeError(
+        f"Missing required environment variable(s): {missing_list}. "
+        "Set them in your environment or .env file before running the application."
+    )
