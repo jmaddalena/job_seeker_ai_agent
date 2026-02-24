@@ -6,7 +6,7 @@ LinkedIn blocks simple HTTP requests, so we use a headless Chromium browser.
 
 import logging
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, urlunparse
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError
 
@@ -103,8 +103,9 @@ def _parse_card(card) -> dict | None:
         job_url = link_el.get_attribute("href") if link_el else None
         if not job_url:
             return None
-        # Strip query params for a clean URL
-        job_url = job_url.split("?")[0]
+        # Strip query params and fragments for a clean, canonical URL
+        parsed = urlparse(job_url)
+        job_url = urlunparse(parsed._replace(query="", fragment=""))
 
         company_el = card.query_selector(
             "h4.base-search-card__subtitle, span.job-card-container__primary-description"

@@ -30,6 +30,12 @@ def send_digest(listings: list[dict]) -> None:
     msg.set_content(plain)
     msg.add_alternative(html, subtype="html")
 
+    if not config.SMTP_USERNAME or not config.SMTP_PASSWORD:
+        raise ValueError(
+            "SMTP_USERNAME and SMTP_PASSWORD must be set before sending email. "
+            "Set the SMTP_USER and SMTP_PASSWORD environment variables."
+        )
+
     try:
         with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT) as smtp:
             smtp.ehlo()
