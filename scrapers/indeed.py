@@ -1,24 +1,20 @@
 """
-scrapers/indeed.py — Scrapes Indeed job listings using requests + BeautifulSoup.
+scrapers/indeed.py — Scrapes Indeed job listings using Playwright.
+
+Indeed blocks plain HTTP requests, so we use a headless Chromium browser
+(the same approach already used for LinkedIn).
 """
 
-import time
 import logging
-import requests
-from bs4 import BeautifulSoup
+import time
+from urllib.parse import urlencode, urlparse, urlunparse
+
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
 INDEED_BASE = "https://www.indeed.com"
+INDEED_JOBS_URL = f"{INDEED_BASE}/jobs?"
 
 
 def scrape(queries: list[str], max_pages: int = 3) -> list[dict]:
@@ -30,81 +26,101 @@ def scrape(queries: list[str], max_pages: int = 3) -> list[dict]:
     seen_urls: set[str] = set()
     results: list[dict] = []
 
-    for query in queries:
-        for page in range(max_pages):
-            start = page * 10
-            params = {"q": query, "l": "remote", "start": start, "fromage": 1}
-            url = f"{INDEED_BASE}/jobs"
-            try:
-                resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
-                resp.raise_for_status()
-            except requests.RequestException as exc:
-                logger.warning("Indeed request failed for query=%r page=%d: %s", query, page, exc)
-                break
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            )
+        )
+        page = context.new_page()
 
-            soup = BeautifulSoup(resp.text, "html.parser")
-            job_cards = soup.find_all("div", class_="job_seen_beacon")
+        for query in queries:
+            for page_num in range(max_pages):
+                start = page_num * 10
+                params = {"q": query, "l": "remote", "start": start, "fromage": 1}
+                url = INDEED_JOBS_URL + urlencode(params)
 
-            if not job_cards:
-                # Try alternate card class used on some Indeed layouts
-                job_cards = soup.find_all("div", attrs={"data-testid": "jobCard"})
+                try:
+                    page.goto(url, timeout=30_000, wait_until="domcontentloaded")
+                    page.wait_for_selector(
+                        "div.job_seen_beacon, div[data-testid='jobCard']",
+                        timeout=10_000,
+                    )
+                except PWTimeoutError:
+                    logger.warning(
+                        "Indeed page timed out for query=%r page=%d", query, page_num
+                    )
+                    break
 
-            if not job_cards:
-                logger.debug("No job cards found for query=%r page=%d; stopping.", query, page)
-                break
+                cards = page.query_selector_all("div.job_seen_beacon")
+                if not cards:
+                    cards = page.query_selector_all("div[data-testid='jobCard']")
 
-            parse_failures = 0
-            for card in job_cards:
-                job = _parse_card(card)
-                if job is None:
-                    parse_failures += 1
-                elif job["url"] not in seen_urls:
-                    seen_urls.add(job["url"])
-                    results.append(job)
+                if not cards:
+                    logger.debug(
+                        "No Indeed cards found for query=%r page=%d; stopping.", query, page_num
+                    )
+                    break
 
-            if parse_failures:
-                logger.warning(
-                    "Indeed: %d/%d cards failed to parse for query=%r page=%d — "
-                    "the site layout may have changed.",
-                    parse_failures, len(job_cards), query, page,
-                )
+                parse_failures = 0
+                for card in cards:
+                    job = _parse_card(card)
+                    if job is None:
+                        parse_failures += 1
+                    elif job["url"] not in seen_urls:
+                        seen_urls.add(job["url"])
+                        results.append(job)
 
-            time.sleep(1)  # polite crawl delay
+                if parse_failures:
+                    logger.warning(
+                        "Indeed: %d/%d cards failed to parse for query=%r page=%d — "
+                        "the site layout may have changed.",
+                        parse_failures, len(cards), query, page_num,
+                    )
+
+                time.sleep(2)  # polite crawl delay
+
+        browser.close()
 
     logger.info("Indeed: collected %d listings.", len(results))
     return results
 
 
 def _parse_card(card) -> dict | None:
-    """Extract structured fields from a single Indeed job card."""
+    """Extract structured fields from a single Indeed job card element."""
     try:
-        title_tag = card.find("h2", class_="jobTitle") or card.find("a", {"data-jk": True})
-        if not title_tag:
-            return None
-        title = title_tag.get_text(strip=True)
-
-        # Build absolute URL
-        link = title_tag.find("a") if title_tag.name != "a" else title_tag
-        if link and link.get("href"):
-            href = link["href"]
-            job_url = href if href.startswith("http") else f"{INDEED_BASE}{href}"
-        else:
+        title_el = card.query_selector("h2.jobTitle a span, h2.jobTitle span")
+        title = title_el.inner_text().strip() if title_el else None
+        if not title:
             return None
 
-        company_tag = card.find("span", attrs={"data-testid": "company-name"}) or card.find(
-            "span", class_="companyName"
-        )
-        company = company_tag.get_text(strip=True) if company_tag else "Unknown"
+        link_el = card.query_selector("h2.jobTitle a[href], a[data-jk]")
+        job_url = link_el.get_attribute("href") if link_el else None
+        if not job_url:
+            return None
+        # Resolve relative URLs and strip tracking params to get a stable canonical URL
+        if not job_url.startswith("http"):
+            job_url = f"{INDEED_BASE}{job_url}"
+        parsed = urlparse(job_url)
+        job_url = urlunparse(parsed._replace(query="", fragment=""))
 
-        location_tag = card.find("div", attrs={"data-testid": "text-location"}) or card.find(
-            "div", class_="companyLocation"
+        company_el = card.query_selector(
+            "[data-testid='company-name'], span.companyName"
         )
-        location = location_tag.get_text(strip=True) if location_tag else "Unknown"
+        company = company_el.inner_text().strip() if company_el else "Unknown"
 
-        snippet_tag = card.find("div", class_="job-snippet") or card.find(
-            "div", attrs={"data-testid": "jobDescription"}
+        location_el = card.query_selector(
+            "[data-testid='text-location'], div.companyLocation"
         )
-        description = snippet_tag.get_text(" ", strip=True) if snippet_tag else ""
+        location = location_el.inner_text().strip() if location_el else "Unknown"
+
+        description_el = card.query_selector(
+            "div.job-snippet, [data-testid='jobDescription']"
+        )
+        description = description_el.inner_text().strip() if description_el else ""
 
         return {
             "title": title,

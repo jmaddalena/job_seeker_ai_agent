@@ -9,7 +9,7 @@ An AI-powered job search agent that scrapes Indeed and LinkedIn daily, uses Clau
 ```
 ┌──────────────┐    ┌──────────────┐
 │  Indeed      │    │  LinkedIn    │   1. Scrape job boards
-│  Scraper     │    │  Scraper     │      (requests + BeautifulSoup / Playwright)
+│  Scraper     │    │  Scraper     │      (Playwright headless Chromium)
 └──────┬───────┘    └──────┬───────┘
        └────────┬──────────┘
                 ▼
