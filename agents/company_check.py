@@ -1,5 +1,6 @@
 """agents/company_check.py — Ethics and culture assessment via Claude."""
 
+import copy
 import logging
 import os
 
@@ -55,7 +56,7 @@ def check_companies(listings: list[dict]) -> list[dict]:
             logger.warning("Claude API error while checking company '%s': %s", job["company"], exc)
             flag = ""
 
-        job = dict(job)  # shallow copy so we don't mutate the input
+        job = copy.deepcopy(job)  # deep copy so we don't mutate the input
         job["ethics_flag"] = flag
         checked.append(job)
         logger.debug(
