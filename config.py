@@ -3,38 +3,43 @@
 # ============================================================
 
 # Job search queries sent to each board
+import os
+
+
 SEARCH_QUERIES = [
-    "software engineer remote",
-    "python developer remote",
+    "data scientist",
+    "data researcher",
+    "reinforcement learning",
+    "machine learning",
+    "artificial intelligence",
 ]
 
 # Natural-language description of the ideal role.
 # Claude uses this to decide whether a listing is relevant.
 FILTER_CRITERIA = """
-I am a senior software engineer with 8+ years of experience in Python and
-distributed systems. I am looking for:
-- Remote-first or fully-remote positions
-- Backend / platform / infrastructure roles
+I am a senior data scientist and statistician with 10 years of experience. 
+I am looking for:
+- Remote-first or fully-remote positions, or located in Fort Collins or Boulder, Colorado
+- Roles that involve research, experimentation, and/or building novel data products
 - Competitive compensation (ideally $150k+ USD)
 - Small-to-mid size companies or fast-growing start-ups
-- Companies that use modern tooling (Python, Go, Kubernetes, AWS/GCP)
+- A mission-driven organization with a positive impact on society, ideally in the climate, energy, or scientific research space
 
-I am NOT interested in:
-- Front-end or mobile-only roles
-- Defense / military contractors
-- Crypto / Web3 projects
-- Roles that require relocation or are on-site only
+I am open to transitioning to an artificial intelligence role, but am limited in my skills around AI agents. 
+
+I do not want to work in:
+- Advertising or marketing
+- Social media, e-commerce
+- Oil and gas
+- Defence or weapons manufacturing
 """
 
 # Context used by the ethics / culture check agent.
 # List the kinds of companies or behaviours you want flagged.
 ETHICS_CONTEXT = """
 Please flag this company if any of the following apply:
-- Involved in weapons manufacturing or military contracting
-- Known for unethical data practices or major privacy violations
-- Associated with predatory financial products
-- Has significant recent news about layoffs, toxic culture, or labour violations
-- Active involvement in fossil-fuel extraction
+- The company has a history of unethical behavior.
+- The company or its customers are in industries that are harmful to the environment.
 """
 
 # ── Email settings ──────────────────────────────────────────
@@ -42,8 +47,8 @@ Please flag this company if any of the following apply:
 # See: https://myaccount.google.com/apppasswords
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
-SMTP_USERNAME = "your_email@gmail.com"
-SMTP_PASSWORD = "your_app_password_here"
-EMAIL_FROM = "your_email@gmail.com"
-EMAIL_TO = "your_email@gmail.com"
+SMTP_USERNAME = os.getenv("SMTP_USER")  # Load from .env for security
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")  # Load from .env for security
+EMAIL_FROM = os.getenv("SMTP_USER")  # Load from .env for security
+EMAIL_TO = os.getenv("SMTP_USER")  # Load from .env for security
 EMAIL_SUBJECT = "🤖 Daily Job Digest"
