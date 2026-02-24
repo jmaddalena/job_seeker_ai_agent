@@ -5,6 +5,8 @@
 # Job search queries sent to each board
 import os
 
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 SEARCH_QUERIES = [
     "data scientist",
@@ -26,6 +28,10 @@ I am looking for:
 - A mission-driven organization with a positive impact on society, ideally in the climate, energy, or scientific research space
 
 I am open to transitioning to an artificial intelligence role, but am limited in my skills around AI agents. 
+
+I am NOT looking for:
+- data engineer roles
+- machine learning engineering roles that are primarily focused on deploying and maintaining existing models rather than research or novel development
 
 I do not want to work in:
 - Advertising or marketing
