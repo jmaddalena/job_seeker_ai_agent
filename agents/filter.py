@@ -19,6 +19,7 @@ def filter_listings(listings: list[dict]) -> list[dict]:
         return []
 
     relevant: list[dict] = []
+    api_errors = 0
     client = get_client()
 
     for job in listings:
@@ -37,8 +38,16 @@ def filter_listings(listings: list[dict]) -> list[dict]:
                 logger.debug("SKIP  %s @ %s", job["title"], job["company"])
         except anthropic.APIError as exc:
             logger.warning("Claude API error while filtering '%s': %s", job["title"], exc)
-            # On API error keep the listing so nothing is silently dropped
-            relevant.append(job)
+            # On API error skip the listing to avoid sending an unfiltered digest.
+            api_errors += 1
+
+    if api_errors == len(listings):
+        raise RuntimeError(
+            f"Claude API failed for all {len(listings)} listings. "
+            "Check your ANTHROPIC_API_KEY and account credits before running again."
+        )
+    if api_errors:
+        logger.warning("Claude API errors: %d/%d listings were skipped.", api_errors, len(listings))
 
     logger.info("Filter: %d/%d listings passed.", len(relevant), len(listings))
     return relevant
