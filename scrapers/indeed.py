@@ -53,11 +53,21 @@ def scrape(queries: list[str], max_pages: int = 3) -> list[dict]:
                 logger.debug("No job cards found for query=%r page=%d; stopping.", query, page)
                 break
 
+            parse_failures = 0
             for card in job_cards:
                 job = _parse_card(card)
-                if job and job["url"] not in seen_urls:
+                if job is None:
+                    parse_failures += 1
+                elif job["url"] not in seen_urls:
                     seen_urls.add(job["url"])
                     results.append(job)
+
+            if parse_failures:
+                logger.warning(
+                    "Indeed: %d/%d cards failed to parse for query=%r page=%d — "
+                    "the site layout may have changed.",
+                    parse_failures, len(job_cards), query, page,
+                )
 
             time.sleep(1)  # polite crawl delay
 
