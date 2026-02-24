@@ -1,28 +1,13 @@
 """agents/filter.py — LLM pass that keeps only relevant job listings."""
 
 import logging
-import os
 
 import anthropic
 
 import config
+from agents.client import get_client
 
 logger = logging.getLogger(__name__)
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            raise EnvironmentError(
-                "ANTHROPIC_API_KEY environment variable is not set. "
-                "Export it before running: export ANTHROPIC_API_KEY='sk-ant-...'"
-            )
-        _client = anthropic.Anthropic(api_key=api_key)
-    return _client
 
 
 def filter_listings(listings: list[dict]) -> list[dict]:
@@ -34,7 +19,7 @@ def filter_listings(listings: list[dict]) -> list[dict]:
         return []
 
     relevant: list[dict] = []
-    client = _get_client()
+    client = get_client()
 
     for job in listings:
         prompt = _build_prompt(job)

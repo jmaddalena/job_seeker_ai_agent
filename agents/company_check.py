@@ -2,28 +2,17 @@
 
 import copy
 import logging
-import os
 
 import anthropic
 
 import config
+from agents.client import get_client
 
 logger = logging.getLogger(__name__)
 
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            raise EnvironmentError(
-                "ANTHROPIC_API_KEY environment variable is not set. "
-                "Export it before running: export ANTHROPIC_API_KEY='sk-ant-...'"
-            )
-        _client = anthropic.Anthropic(api_key=api_key)
-    return _client
+# In-process cache: company name → ethics flag string.
+# Avoids redundant API calls when the same company appears in multiple listings.
+_company_cache: dict[str, str] = {}
 
 
 def check_companies(listings: list[dict]) -> list[dict]:
@@ -33,35 +22,46 @@ def check_companies(listings: list[dict]) -> list[dict]:
 
     Adds an 'ethics_flag' key (str) to each listing dict.
     A flag value of "" means no concerns found.
+
+    Results are cached per company name within a single run so the same
+    company is never queried more than once.
     """
     if not listings:
         return []
 
-    client = _get_client()
+    client = get_client()
     checked: list[dict] = []
 
     for job in listings:
-        prompt = _build_prompt(job["company"])
-        try:
-            message = client.messages.create(
-                model="claude-3-haiku-20240307",
-                max_tokens=256,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            flag = message.content[0].text.strip()
-            # Normalise: treat "NONE" / "NO CONCERNS" / empty as no flag
-            if flag.upper() in {"NONE", "NO CONCERNS", "NO", ""}:
+        company = job["company"]
+
+        if company in _company_cache:
+            flag = _company_cache[company]
+            logger.debug("Company check cache hit for %s", company)
+        else:
+            prompt = _build_prompt(company)
+            try:
+                message = client.messages.create(
+                    model="claude-3-haiku-20240307",
+                    max_tokens=256,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                flag = message.content[0].text.strip()
+                # Normalise: treat "NONE" / "NO CONCERNS" / empty as no flag
+                if flag.upper() in {"NONE", "NO CONCERNS", "NO", ""}:
+                    flag = ""
+            except anthropic.APIError as exc:
+                logger.warning(
+                    "Claude API error while checking company '%s': %s", company, exc
+                )
                 flag = ""
-        except anthropic.APIError as exc:
-            logger.warning("Claude API error while checking company '%s': %s", job["company"], exc)
-            flag = ""
+
+            _company_cache[company] = flag
+            logger.debug("Company check for %s: %s", company, flag if flag else "clean")
 
         job = copy.deepcopy(job)  # deep copy so we don't mutate the input
         job["ethics_flag"] = flag
         checked.append(job)
-        logger.debug(
-            "Company check for %s: %s", job["company"], flag if flag else "clean"
-        )
 
     return checked
 
