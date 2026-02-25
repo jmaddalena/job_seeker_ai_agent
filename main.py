@@ -10,12 +10,15 @@ Schedule with cron (8am daily):
 """
 
 import logging
+import os
 import sys
 
 from scrapers import indeed, linkedin
 from agents import filter as job_filter, company_check
 from digest import send
 import config
+
+
 
 logging.basicConfig(
     level=logging.INFO,
