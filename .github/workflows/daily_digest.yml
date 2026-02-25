@@ -1,0 +1,23 @@
+name: Daily Job Digest
+
+on:
+  schedule:
+    - cron: "0 15 * * *"   # 8 AM US/Mountain Standard Time (UTC-7); change to 0 14 * * * during MDT (UTC-6)
+  workflow_dispatch:         # allows manual triggering from the Actions tab
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt && playwright install --with-deps chromium
+      - name: Run job seeker agent
+        run: python main.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
