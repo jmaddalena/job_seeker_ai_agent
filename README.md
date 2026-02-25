@@ -150,60 +150,34 @@ This exercises scraping and both Claude agents without sending an email.
 
 ## Scheduling
 
-### Does cron require AWS or another cloud service?
+The agent is designed to run in the cloud via **GitHub Actions** so it fires reliably every day regardless of whether your local machine is on.
 
-**No — but it does require a machine that is running at the scheduled time.**
+### GitHub Actions (recommended)
 
-`cron` is a standard Unix/Linux/macOS scheduler. The right compute choice depends on your setup:
+The workflow file `.github/workflows/daily_digest.yml` is already included in this repository. It runs automatically at **8 AM Mountain Time** every day.
 
-| Option | Best for | Cost |
-|---|---|---|
-| **Local machine cron** | Always-on desktops/servers | Free |
-| **Cloud VM** (AWS EC2, GCP Compute Engine, DigitalOcean Droplet, etc.) | Reliable daily runs | ~$4–$10/month (smallest instance) |
-| **GitHub Actions scheduled workflow** | Zero infrastructure | Free for public repos; ~2,000 min/month free for private repos |
-| **AWS Lambda + EventBridge Scheduler** | Serverless, pay-per-use | Near-zero cost for once-daily runs |
-| **Raspberry Pi / home server** | Self-hosted, always-on | One-time hardware cost |
+#### Required repository secrets
 
-### Option A: Local cron (macOS/Linux)
+Go to **Settings → Secrets and variables → Actions** in your GitHub repository and add the following secrets:
 
-Add this line to your crontab (`crontab -e`) to run at 8 AM every day:
+| Secret | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` | Your Anthropic API key (`sk-ant-...`) |
+| `SMTP_USER` | Gmail address used to send the digest (`you@gmail.com`) |
+| `SMTP_PASSWORD` | [Gmail App Password](https://myaccount.google.com/apppasswords) (**not** your real password) |
+
+> **Tip:** Use the **Actions → Daily Job Digest → Run workflow** button to trigger a manual run and verify everything works before the first scheduled execution.
+
+#### Timezone note
+
+GitHub Actions schedules run in UTC. The workflow uses `cron: "0 15 * * *"` (UTC 15:00 = 8 AM MST, UTC-7). If you are in a different timezone or want a different time, update the `cron` expression in `.github/workflows/daily_digest.yml` accordingly.
+
+### Alternative: Local cron (macOS/Linux)
+
+If you prefer to run the agent on your own always-on machine, add this line to your crontab (`crontab -e`):
 
 ```cron
 0 8 * * * cd /path/to/job_seeker_ai_agent && /path/to/.venv/bin/python main.py >> ~/job-agent.log 2>&1
 ```
 
-### Option B: GitHub Actions (recommended — no server needed)
-
-Create `.github/workflows/daily_digest.yml`:
-
-```yaml
-name: Daily Job Digest
-
-on:
-  schedule:
-    - cron: "0 15 * * *"   # 8 AM US/Mountain Standard Time (UTC-7); use 0 14 * * * during MDT (UTC-6)
-  workflow_dispatch:         # allows manual triggering from the Actions tab
-
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install -r requirements.txt && playwright install --with-deps chromium
-      - run: python main.py
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-```
-
-Store `ANTHROPIC_API_KEY`, `SMTP_USER`, and `SMTP_PASSWORD` as [repository secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets).
-
-> **Tip:** Use `workflow_dispatch` to test your workflow on demand before relying on the schedule.
-
-### Option C: AWS Lambda + EventBridge
-
-For a fully serverless setup, package the project as a Lambda function (using a container image to include Playwright) and trigger it with an EventBridge Scheduler rule. This is cost-effective for infrequent runs but requires more setup than GitHub Actions.
+Make sure the required environment variables (`ANTHROPIC_API_KEY`, `SMTP_USER`, `SMTP_PASSWORD`) are available in the cron environment.
