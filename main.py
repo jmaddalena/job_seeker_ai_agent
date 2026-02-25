@@ -5,8 +5,8 @@ main.py — Entry point for the Job Seeker AI Agent.
 Run once manually:
     python main.py
 
-Schedule with cron (8am daily):
-    0 8 * * * cd /path/to/job-agent && python main.py >> ~/job-agent.log 2>&1
+Scheduled automatically at 8 AM daily via GitHub Actions
+(.github/workflows/daily_digest.yml).
 """
 
 import logging
