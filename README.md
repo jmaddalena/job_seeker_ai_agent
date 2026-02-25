@@ -30,6 +30,7 @@ An AI-powered job search agent that scrapes Indeed and LinkedIn daily, uses Clau
 
 Each morning you receive an email listing only the jobs that passed both the relevance filter and the ethics check, with any flagged companies highlighted.
 
+
 ---
 
 ## Prerequisites
